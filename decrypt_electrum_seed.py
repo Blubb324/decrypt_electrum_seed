@@ -88,7 +88,7 @@ def decrypt_electrum_seed(wallet_file, get_password_fn):
         # Carefully check base64 encoding and truncate it at the first unrecoverable character group
         b64_chars_set = set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/')
         assert len(b64_chars_set) == 64
-        for i in xrange(0, len(b64_encrypted_data), 4):  # iterate over 4-character long groups
+        for i in range(0, len(b64_encrypted_data), 4):  # iterate over 4-character long groups
             char_group_len = len(b64_encrypted_data[i:])
 
             if char_group_len == 1:
@@ -150,7 +150,7 @@ def decrypt_electrum_seed(wallet_file, get_password_fn):
         stream_cipher = aespython.cbc_mode.CBCMode(block_cipher, 16)
         stream_cipher.set_iv(bytearray(iv))
         seed = bytearray()
-        for i in xrange(0, len(encrypted_seed), 16):
+        for i in range(0, len(encrypted_seed), 16):
             seed.extend( stream_cipher.decrypt_block(map(ord, encrypted_seed[i:i+16])) )
         padding_len = seed[-1]
         # check for PKCS7 padding
@@ -225,7 +225,7 @@ if __name__ == '__main__':
     else:  # GUI mode
 
         pause_at_exit = True
-        atexit.register(lambda: pause_at_exit and raw_input('\nPress Enter to exit ...'))
+        atexit.register(lambda: pause_at_exit and input('\nPress Enter to exit ...'))
 
         import Tkinter as tk, tkFileDialog, tkSimpleDialog
 
@@ -245,28 +245,29 @@ if __name__ == '__main__':
     # mnemonic_str could be a str (possibly containing non-ASCII bytes) or a valid unicode
 
     if seed_str:
-        print '\nWARNING: seed information is sensitive, do not share'
-        print 'decrypted seed (should be hex-encoded):', repr(seed_str)
+        print('\nWARNING: seed information is sensitive, do not share')
+        print('decrypted seed (should be hex-encoded):', repr(seed_str))
 
     if mnemonic_str:
 
         if not tk_root:  # if the GUI is not being used
             if not seed_str:  # print the warning message if not already done
-                print '\nWARNING: seed information is sensitive, do not share'
-            print 'mnemonic words:'
+                print('\nWARNING: seed information is sensitive, do not share')
+            print('mnemonic words:')
             try:
-                print ' ', mnemonic_str.encode(sys.stdout.encoding or 'ASCII')
+                print(' ', mnemonic_str.encode(sys.stdout.encoding or 'ASCII'))
             except UnicodeDecodeError:    # was probably an invalid password,
-                print repr(mnemonic_str)  # so just print the raw bytes
+                print(repr(mnemonic_str))  # so just print the raw bytes
             except UnicodeEncodeError:
-                print "ERROR: terminal does not support the seed's character set"
+                print("ERROR: terminal does not support the seed's character set")
 
         # print this if there's any chance of Unicode-related display issues
         is_non_ascii = any(ord(c) < 32 or ord(c) > 126 for c in mnemonic_str)
-        if isinstance(mnemonic_str, unicode) and is_non_ascii:
+        #if isinstance(mnemonic_str, unicode) and is_non_ascii:
+        if is_non_ascii:
             try:
                 mnemonic_html = mnemonic_str.encode('ASCII', 'xmlcharrefreplace')
-                print 'HTML encoded:\n ', mnemonic_html
+                print('HTML encoded:\n ', mnemonic_html)
             except UnicodeDecodeError:
                 pass  # the raw bytes were already printed above (or will be displayed below)
 
