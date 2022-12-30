@@ -36,13 +36,14 @@
 
 __version__ = '0.3.0'
 
+import base64
 import sys, warnings, ast, json, hashlib, getpass, atexit, unicodedata
 import aespython.key_expander, aespython.aes_cipher, aespython.cbc_mode
 import mnemonic
 
 
 def simple_warn(message, *ignored):
-    print >> sys.stderr, message
+    print(message)
 
 warnings.showwarning = simple_warn
 warn = warnings.warn
@@ -83,7 +84,7 @@ def decrypt_electrum_seed(wallet_file, get_password_fn):
 
     if wallet.get('use_encryption'):
 
-        b64_encrypted_data = wallet['seed']
+        b64_encrypted_data = wallet['keystore']['seed']
 
         # Carefully check base64 encoding and truncate it at the first unrecoverable character group
         b64_chars_set = set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/')
@@ -114,7 +115,7 @@ def decrypt_electrum_seed(wallet_file, get_password_fn):
                         break
 
         # Decode base64 and then extract the IV and encrypted_seed
-        iv_and_encrypted_seed = b64_encrypted_data.decode('base64')
+        iv_and_encrypted_seed = base64.b64decode(b64_encrypted_data)
         if seed_version == 4 and len(iv_and_encrypted_seed) != 64:
             warn('encrypted seed plus iv is {} bytes long; expected 64'.format(len(iv_and_encrypted_seed)))
         iv             = iv_and_encrypted_seed[:16]
