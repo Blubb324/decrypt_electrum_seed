@@ -149,7 +149,6 @@ def decrypt_electrum_seed(wallet_file, get_password_fn):
         for i in range(0, encrypted_seed_length, 16):
             bytes_of_seed = encrypted_seed[i:i + 16]
             list_bytes_of_seeds = list(bytes_of_seed)
-            # list_bytes_of_seeds = map(ord, encrypted_seed[i:i+16]) python 2
             seed.extend( stream_cipher.decrypt_block( list_bytes_of_seeds) )
         padding_len = seed[-1]
         # check for PKCS7 padding
@@ -224,19 +223,10 @@ if __name__ == '__main__':
     else:  # GUI mode
 
         pause_at_exit = True
-        #atexit.register(lambda: pause_at_exit and input('\nPress Enter to exit ...'))
 
-        from sys import version_info
-
-        # Will keep it for version 2
-        if version_info.major == 2:
-            # We are using Python 2.x
-            import Tkinter as tk, tkFileDialog, tkSimpleDialog
-        elif version_info.major == 3:
-            # We are using Python 3.x
-            import tkinter as tk
-            import tkinter.filedialog as tkFileDialog
-            import tkinter.simpledialog as tkSimpleDialog
+        import tkinter as tk
+        import tkinter.filedialog as tkFileDialog
+        import tkinter.simpledialog as tkSimpleDialog
 
         tk_root = tk.Tk(className='decrypt_electrum_seed.py')  # initialize library
         tk_root.withdraw()                                     # but don't display a window (yet)
