@@ -37,14 +37,23 @@
 
 __version__ = '0.3.0'
 
+import ast
 import base64
-import sys, warnings, ast, json, hashlib, getpass, atexit, unicodedata
-import aespython.key_expander, aespython.aes_cipher, aespython.cbc_mode
+import getpass
+import hashlib
+import json
+import sys
+import warnings
+
+import aespython.aes_cipher
+import aespython.cbc_mode
+import aespython.key_expander
 import mnemonic
 
 
 def simple_warn(message, *ignored):
     print(message)
+
 
 warnings.showwarning = simple_warn
 warn = warnings.warn
@@ -102,24 +111,26 @@ def decrypt_electrum_seed(wallet_file, get_password_fn):
                 warn('adding padding to incomplete base64 suffix {!r} in encrypted seed'.format(b64_encrypted_data[i:]))
                 b64_encrypted_data += '=' * (4 - char_group_len)
 
-            for j,c in enumerate(b64_encrypted_data[i:i+4]):  # check the 4 characters in this group
+            for j, c in enumerate(b64_encrypted_data[i:i + 4]):  # check the 4 characters in this group
                 if c not in b64_chars_set:
-                    if j > 1 and c == '=':   # padding characters are allowed in positions 2 and 3 of a group,
+                    if j > 1 and c == '=':  # padding characters are allowed in positions 2 and 3 of a group,
                         b64_chars_set = '='  # and once one is found all the rest must be padding
                     else:
-                        warn('found invalid base64 char {!r} at position {} in encrypted seed; ignoring the rest'.format(c, i+j))
+                        warn(
+                            'found invalid base64 char {!r} at position {} in encrypted seed; ignoring the rest'.format(
+                                c, i + j))
                         if j <= 1:  # character groups of length 0 or 1 are invalid: the entire group is truncated
                             b64_encrypted_data = b64_encrypted_data[:i]
-                        else:       # else truncate and replace invalid characters with padding
-                            b64_encrypted_data = b64_encrypted_data[:i+j]
-                            b64_encrypted_data += '=' * (4-j)
+                        else:  # else truncate and replace invalid characters with padding
+                            b64_encrypted_data = b64_encrypted_data[:i + j]
+                            b64_encrypted_data += '=' * (4 - j)
                         break
 
         # Decode base64 and then extract the IV and encrypted_seed
         iv_and_encrypted_seed = base64.b64decode(b64_encrypted_data)
         if seed_version == 4 and len(iv_and_encrypted_seed) != 64:
             warn('encrypted seed plus iv is {} bytes long; expected 64'.format(len(iv_and_encrypted_seed)))
-        iv             = iv_and_encrypted_seed[:16]
+        iv = iv_and_encrypted_seed[:16]
         encrypted_seed = iv_and_encrypted_seed[16:]
         if len(encrypted_seed) < 16:
             warn('length of encrypted seed, {}, is less than one AES block (16), giving up'.format(len(encrypted_seed)))
@@ -136,12 +147,12 @@ def decrypt_electrum_seed(wallet_file, get_password_fn):
         password = password.encode('UTF-8')
 
         # Derive the encryption key
-        key = hashlib.sha256( hashlib.sha256( password ).digest() ).digest()
+        key = hashlib.sha256(hashlib.sha256(password).digest()).digest()
 
         # Decrypt the seed
-        key_expander  = aespython.key_expander.KeyExpander(256)
+        key_expander = aespython.key_expander.KeyExpander(256)
         byte_key = bytearray(key)
-        block_cipher  = aespython.aes_cipher.AESCipher( key_expander.expand(byte_key) )
+        block_cipher = aespython.aes_cipher.AESCipher(key_expander.expand(byte_key))
         stream_cipher = aespython.cbc_mode.CBCMode(block_cipher, 16)
         stream_cipher.set_iv(bytearray(iv))
         seed = bytearray()
@@ -149,10 +160,14 @@ def decrypt_electrum_seed(wallet_file, get_password_fn):
         for i in range(0, encrypted_seed_length, 16):
             bytes_of_seed = encrypted_seed[i:i + 16]
             list_bytes_of_seeds = list(bytes_of_seed)
-            seed.extend( stream_cipher.decrypt_block( list_bytes_of_seeds) )
+            seed.extend(stream_cipher.decrypt_block(list_bytes_of_seeds))
         padding_len = seed[-1]
         # check for PKCS7 padding
-        seed_string = seed.decode("utf-8")
+        try:
+            seed_string = seed.decode("utf-8")
+        except Exception:
+            sys.exit('Wrong password')
+
         if not (1 <= padding_len <= 16 and seed_string.endswith(chr(padding_len) * padding_len)):
             warn('not removing invalid PKCS7 padding (the password was probably entered wrong)')
             seed = str(seed)
@@ -174,7 +189,7 @@ def decrypt_electrum_seed(wallet_file, get_password_fn):
 
     # For Electrum 1.x, carefully check hex encoding and truncate it at the first non-hex digit
     hex_seed = seed
-    for i,h in enumerate(hex_seed):
+    for i, h in enumerate(hex_seed):
         if not ('0' <= h <= '9' or 'a' <= h <= 'f'):
             if 'A' <= h <= 'F':
                 warn('found unexpected capital hex digit')
@@ -210,6 +225,7 @@ if __name__ == '__main__':
 
         wallet_file = open(sys.argv[1])
 
+
         def get_password():  # must return unicode
             encoding = sys.stdin.encoding or 'ASCII'
             if 'utf' not in encoding.lower():
@@ -217,6 +233,7 @@ if __name__ == '__main__':
             password = getpass.getpass('This wallet is encrypted, please enter its password: ')
             if isinstance(password, str):
                 return password
+
 
         tk_root = None
 
@@ -229,14 +246,16 @@ if __name__ == '__main__':
         import tkinter.simpledialog as tkSimpleDialog
 
         tk_root = tk.Tk(className='decrypt_electrum_seed.py')  # initialize library
-        tk_root.withdraw()                                     # but don't display a window (yet)
+        tk_root.withdraw()  # but don't display a window (yet)
 
         wallet_file = tkFileDialog.askopenfile(title='Load wallet file')
         if not wallet_file:
             sys.exit('no wallet file selected')
 
+
         def get_password():  # must return unicode
-            password = tkSimpleDialog.askstring('Password', 'This wallet is encrypted, please enter its password:', show='*')
+            password = tkSimpleDialog.askstring('Password', 'This wallet is encrypted, please enter its password:',
+                                                show='*')
             return password
 
     seed_str, mnemonic_str = decrypt_electrum_seed(wallet_file, get_password)
@@ -255,14 +274,14 @@ if __name__ == '__main__':
             print('mnemonic words:')
             try:
                 print(' ', mnemonic_str.encode(sys.stdout.encoding or 'ASCII'))
-            except UnicodeDecodeError:    # was probably an invalid password,
+            except UnicodeDecodeError:  # was probably an invalid password,
                 print(repr(mnemonic_str))  # so just print the raw bytes
             except UnicodeEncodeError:
                 print("ERROR: terminal does not support the seed's character set")
 
         # print this if there's any chance of Unicode-related display issues
         is_non_ascii = any(ord(c) < 32 or ord(c) > 126 for c in mnemonic_str)
-        #if isinstance(mnemonic_str, unicode) and is_non_ascii:
+        # if isinstance(mnemonic_str, unicode) and is_non_ascii:
         if is_non_ascii:
             try:
                 mnemonic_html = mnemonic_str.encode('ASCII', 'xmlcharrefreplace')
@@ -270,7 +289,7 @@ if __name__ == '__main__':
             except UnicodeDecodeError:
                 pass  # the raw bytes were already printed above (or will be displayed below)
 
-        if tk_root:      # if the GUI is being used
+        if tk_root:  # if the GUI is being used
             padding = 6
             tk.Label(text='WARNING: seed information is sensitive, carefully protect it and do not share', fg='red') \
                 .pack(padx=padding, pady=padding)
