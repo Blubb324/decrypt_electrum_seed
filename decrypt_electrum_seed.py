@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 # decrypt_electrum_seed.py
 # Copyright (C) 2015 Christopher Gurnee
@@ -132,14 +133,6 @@ def decrypt_electrum_seed(wallet_file, get_password_fn):
         password = get_password_fn()  # get a password via the callback
         if password is None:
             return None, None
-        if unicodedata.normalize('NFC', password) != unicodedata.normalize('NFD', password):
-            if password == unicodedata.normalize('NFC', password):
-                the_default = 'NFC'
-            elif password == unicodedata.normalize('NFD', password):
-                the_default = 'NFD'
-            else:
-                the_default = 'a combination'
-            warn('password has different NFC and NFD encodings; only trying the default ({})'.format(the_default))
         password = password.encode('UTF-8')
 
         # Derive the encryption key
@@ -147,15 +140,21 @@ def decrypt_electrum_seed(wallet_file, get_password_fn):
 
         # Decrypt the seed
         key_expander  = aespython.key_expander.KeyExpander(256)
-        block_cipher  = aespython.aes_cipher.AESCipher( key_expander.expand(map(ord, key)) )
+        byte_key = bytearray(key)
+        block_cipher  = aespython.aes_cipher.AESCipher( key_expander.expand(byte_key) )
         stream_cipher = aespython.cbc_mode.CBCMode(block_cipher, 16)
         stream_cipher.set_iv(bytearray(iv))
         seed = bytearray()
-        for i in range(0, len(encrypted_seed), 16):
-            seed.extend( stream_cipher.decrypt_block(map(ord, encrypted_seed[i:i+16])) )
+        encrypted_seed_length = len(encrypted_seed)
+        for i in range(0, encrypted_seed_length, 16):
+            bytes_of_seed = encrypted_seed[i:i + 16]
+            list_bytes_of_seeds = list(bytes_of_seed)
+            # list_bytes_of_seeds = map(ord, encrypted_seed[i:i+16]) python 2
+            seed.extend( stream_cipher.decrypt_block( list_bytes_of_seeds) )
         padding_len = seed[-1]
         # check for PKCS7 padding
-        if not (1 <= padding_len <= 16 and seed.endswith(chr(padding_len) * padding_len)):
+        seed_string = seed.decode("utf-8")
+        if not (1 <= padding_len <= 16 and seed_string.endswith(chr(padding_len) * padding_len)):
             warn('not removing invalid PKCS7 padding (the password was probably entered wrong)')
             seed = str(seed)
         else:
@@ -218,17 +217,26 @@ if __name__ == '__main__':
                 warn('terminal does not support UTF; passwords with non-ASCII chars might not work')
             password = getpass.getpass('This wallet is encrypted, please enter its password: ')
             if isinstance(password, str):
-                password = password.decode(encoding)  # convert from terminal's encoding to unicode
-            return password
+                return password
 
         tk_root = None
 
     else:  # GUI mode
 
         pause_at_exit = True
-        atexit.register(lambda: pause_at_exit and input('\nPress Enter to exit ...'))
+        #atexit.register(lambda: pause_at_exit and input('\nPress Enter to exit ...'))
 
-        import Tkinter as tk, tkFileDialog, tkSimpleDialog
+        from sys import version_info
+
+        # Will keep it for version 2
+        if version_info.major == 2:
+            # We are using Python 2.x
+            import Tkinter as tk, tkFileDialog, tkSimpleDialog
+        elif version_info.major == 3:
+            # We are using Python 3.x
+            import tkinter as tk
+            import tkinter.filedialog as tkFileDialog
+            import tkinter.simpledialog as tkSimpleDialog
 
         tk_root = tk.Tk(className='decrypt_electrum_seed.py')  # initialize library
         tk_root.withdraw()                                     # but don't display a window (yet)
@@ -239,7 +247,7 @@ if __name__ == '__main__':
 
         def get_password():  # must return unicode
             password = tkSimpleDialog.askstring('Password', 'This wallet is encrypted, please enter its password:', show='*')
-            return password.decode('ASCII') if isinstance(password, str) else password
+            return password
 
     seed_str, mnemonic_str = decrypt_electrum_seed(wallet_file, get_password)
     # seed_str is a str (possibly containing non-ASCII bytes), and
